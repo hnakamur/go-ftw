@@ -291,14 +291,11 @@ func (ll *FTWLogLines) CheckLogForMarker(markerId string, readLimit uint) []byte
 
 		line = bytes.ToLower(line)
 		if bytes.Contains(line, crsHeaderBytes) {
-			break
+			// Found the header, return the line if it matches the stage ID
+			if bytes.Contains(line, stageIDBytes) {
+				return line
+			}
+			log.Trace().Msgf("skip unexpected marker line while looking for %s: %s", markerId, line)
 		}
 	}
-
-	// Found the header, now the line should also match the stage ID
-	if bytes.Contains(line, stageIDBytes) {
-		return line
-	}
-	log.Debug().Msgf("found unexpected marker line while looking for %s: %s", markerId, line)
-	return nil
 }
