@@ -14,7 +14,6 @@ import (
 	"slices"
 
 	"github.com/coreruleset/go-ftw/v2/utils"
-	"github.com/icza/backscanner"
 	"github.com/rs/zerolog/log"
 )
 
@@ -170,85 +169,7 @@ func (ll *FTWLogLines) GetMarkedLines() ([][]byte, error) {
 	if ll.markedLinesInitialized {
 		return ll.markedLines, nil
 	}
-	log.Trace().Msg("Collecting marked lines")
-
-	if len(ll.startMarker) == 0 || len(ll.endMarker) == 0 {
-		return nil, errors.New("both start and end marker must be set before the log can be inspected")
-	}
-
-	if bytes.Equal(ll.startMarker, ll.endMarker) {
-		return nil, fmt.Errorf("start and end markers must be different. %q", ll.startMarker)
-	}
-
-	if err := ll.computeMarkedLines(); err != nil {
-		return nil, err
-	}
-	ll.markedLinesInitialized = true
-	return ll.markedLines, nil
-}
-
-func (ll *FTWLogLines) computeMarkedLines() error {
-	fileInfo, err := ll.logFile.Stat()
-	if err != nil {
-		log.Error().Caller().Msg("cannot read file's size")
-		return err
-	}
-
-	// Lines in modsec logging can be quite large
-	backscannerOptions := &backscanner.Options{
-		ChunkSize: 4096,
-	}
-	scanner := backscanner.NewOptions(ll.logFile, int(fileInfo.Size()), backscannerOptions)
-	startFound := false
-	endFound := false
-	// end marker is the *first* marker when reading backwards,
-	// start marker is the *last* marker
-	for {
-		line, _, err := scanner.LineBytes()
-		if err != nil {
-			if err != io.EOF {
-				log.Trace().Err(err)
-			}
-			break
-		}
-		lineLower := bytes.ToLower(line)
-
-		if !endFound {
-			// Skip lines until we find the end marker. Reading backwards, the lines we are looking for are
-			// between the end and start markers.
-			if bytes.Equal(lineLower, ll.endMarker) {
-				endFound = true
-			}
-			continue
-		}
-		if endFound && bytes.Equal(lineLower, ll.endMarker) {
-			// Found a duplicate end marker. This can happen when we force log
-			// flushing through `markAndFlush()`, where we resend the end marker until
-			// we see it in the log.
-
-			// As we pretty much control the log, we don't need to clear any
-			// log lines that could, technically, occur between two consecutive
-			// end markers.
-			log.Trace().Msg("Skipping duplicate end marker")
-			continue
-		} else if endFound && bytes.Equal(lineLower, ll.startMarker) {
-			startFound = true
-			break
-		}
-
-		saneCopy := make([]byte, len(line))
-		copy(saneCopy, line)
-		ll.markedLines = append(ll.markedLines, saneCopy)
-	}
-	if !startFound {
-		log.Debug().Msg("start marker not found while collecting marked lines")
-	}
-
-	// Reverse the order to restore original log order
-	slices.Reverse(ll.markedLines)
-
-	log.Trace().Msgf("Found %d log lines: %s\n", len(ll.markedLines), bytes.Join(ll.markedLines, []byte{'\n'}))
-	return nil
+	return nil, errors.New("CheckLogForMarker must be called for startMarker and endMarker beforehand")
 }
 
 // CheckLogForMarker reads the log file and searches for a marker line.
