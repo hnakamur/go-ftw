@@ -261,23 +261,35 @@ func (ll *FTWLogLines) CheckLogForMarker(markerId string, readLimit uint) []byte
 
 	var markerLine []byte
 	lineCounter := uint(0)
-	if ll.logScanner == nil {
-		ll.MakeLogScanner()
+	if ll.logBufReader == nil {
+		ll.MakeLogBufReader()
 	}
 	// Look for the header until EOF or `readLimit` lines at most
-	for ll.logScanner.Scan() {
+	eof := false
+	for !eof {
 		if lineCounter > readLimit {
 			log.Debug().Msg("aborting search for marker")
 			return nil
 		}
 		lineCounter++
 
-		line := ll.logScanner.Bytes()
+		line, err := ll.logBufReader.ReadBytes('\n')
+		if err != nil {
+			if err != io.EOF {
+				log.Error().Err(err).Msg("failed to inspect next log line for marker")
+				return nil
+			}
+			eof = true
+		}
+		line = bytes.TrimRight(line, "\r\n")
 		lineLower := bytes.ToLower(line)
 		if bytes.Contains(lineLower, crsHeaderBytes) {
 			// Found the header, return the line if it matches the stage ID
 			if bytes.Contains(lineLower, stageIDBytes) {
 				markerLine = lineLower
+				if searchingEndMarker {
+					ll.markedLinesInitialized = true
+				}
 				break
 			}
 			log.Trace().Msgf("skip unexpected marker line while looking for %s: %s", markerId, line)
@@ -289,12 +301,6 @@ func (ll *FTWLogLines) CheckLogForMarker(markerId string, readLimit uint) []byte
 			copy(saneCopy, line)
 			ll.markedLines = append(ll.markedLines, saneCopy)
 		}
-	}
-	if err := ll.logScanner.Err(); err != nil {
-		log.Error().Err(err).Msg("failed to inspect next log line for marker")
-	}
-	if searchingEndMarker {
-		ll.markedLinesInitialized = true
 	}
 	return markerLine
 }

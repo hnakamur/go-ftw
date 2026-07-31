@@ -17,7 +17,7 @@ import (
 type FTWLogLines struct {
 	logFilePath               string
 	logFile                   *os.File
-	logScanner                *bufio.Scanner
+	logBufReader              *bufio.Reader
 	LogMarkerHeaderName       []byte
 	startMarker               []byte
 	endMarker                 []byte
@@ -46,6 +46,7 @@ func (ll *FTWLogLines) reset() {
 	ll.triggeredRulesInitialized = false
 }
 
-func (ll *FTWLogLines) MakeLogScanner() {
-	ll.logScanner = bufio.NewScanner(ll.logFile)
+func (ll *FTWLogLines) MakeLogBufReader() {
+	const logBufSize = 1 << 20 // 1MiB
+	ll.logBufReader = bufio.NewReaderSize(ll.logFile, logBufSize)
 }

@@ -262,7 +262,7 @@ func markAndFlush(runContext *TestRunContext, testInput *test.Input, stageId str
 		if marker != nil {
 			return marker, nil
 		}
-		runContext.LogLines.MakeLogScanner()
+		runContext.LogLines.MakeLogBufReader()
 	}
 	return nil, fmt.Errorf("can't find log marker. Am I reading the correct log? Log file: %s", runContext.RunnerConfig.LogFilePath)
 }
