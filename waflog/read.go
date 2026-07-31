@@ -13,6 +13,7 @@ import (
 
 	"slices"
 
+	"github.com/coreruleset/go-ftw/v2/utils"
 	"github.com/icza/backscanner"
 	"github.com/rs/zerolog/log"
 )
@@ -254,48 +255,46 @@ func (ll *FTWLogLines) computeMarkedLines() error {
 // markerId is the ID of the current stage + suffix (for start / end), which is part of the marker line
 // readLimit is the maximum numbers of lines to check
 func (ll *FTWLogLines) CheckLogForMarker(markerId string, readLimit uint) []byte {
-	offset, err := ll.logFile.Seek(0, io.SeekEnd)
-	if err != nil {
-		log.Error().Caller().Err(err).Msg("failed to seek end of log file")
-		return nil
-	}
-
-	// Lines in logging can be quite large
-	backscannerOptions := &backscanner.Options{
-		ChunkSize: 4096,
-	}
-	scanner := backscanner.NewOptions(ll.logFile, int(offset), backscannerOptions)
+	searchingEndMarker := utils.IsEndMarker(markerId)
 	stageIDBytes := []byte(markerId)
 	crsHeaderBytes := bytes.ToLower([]byte(ll.LogMarkerHeaderName))
 
-	var line []byte
+	var markerLine []byte
 	lineCounter := uint(0)
+	if ll.logScanner == nil {
+		ll.MakeLogScanner()
+	}
 	// Look for the header until EOF or `readLimit` lines at most
-	for {
+	for ll.logScanner.Scan() {
 		if lineCounter > readLimit {
 			log.Debug().Msg("aborting search for marker")
 			return nil
 		}
 		lineCounter++
 
-		line, _, err = scanner.LineBytes()
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				log.Trace().Err(err).Msg("found EOF while looking for log marker")
-				return nil
-			} else {
-				log.Error().Err(err).Msg("failed to inspect next log line for marker")
-				return nil
-			}
-		}
-
-		line = bytes.ToLower(line)
-		if bytes.Contains(line, crsHeaderBytes) {
+		line := ll.logScanner.Bytes()
+		lineLower := bytes.ToLower(line)
+		if bytes.Contains(lineLower, crsHeaderBytes) {
 			// Found the header, return the line if it matches the stage ID
-			if bytes.Contains(line, stageIDBytes) {
-				return line
+			if bytes.Contains(lineLower, stageIDBytes) {
+				markerLine = lineLower
+				break
 			}
 			log.Trace().Msgf("skip unexpected marker line while looking for %s: %s", markerId, line)
+			continue
+		}
+
+		if searchingEndMarker {
+			saneCopy := make([]byte, len(line))
+			copy(saneCopy, line)
+			ll.markedLines = append(ll.markedLines, saneCopy)
 		}
 	}
+	if err := ll.logScanner.Err(); err != nil {
+		log.Error().Err(err).Msg("failed to inspect next log line for marker")
+	}
+	if searchingEndMarker {
+		ll.markedLinesInitialized = true
+	}
+	return markerLine
 }

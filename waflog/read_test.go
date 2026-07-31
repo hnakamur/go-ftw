@@ -427,6 +427,7 @@ func (s *readTestSuite) TestFTWLogLines_CheckForLogMarkerIn404() {
 	}
 	ll.WithStartMarker([]byte(startMarkerLine))
 	ll.WithEndMarker([]byte(endMarkerLine))
+	ll.CheckLogForMarker(startMarker, 100)
 	foundMarker := ll.CheckLogForMarker(endMarker, 100)
 	s.Equal(strings.ToLower(endMarkerLine), strings.ToLower(string(foundMarker)))
 }

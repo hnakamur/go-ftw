@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/google/uuid"
 )
@@ -23,4 +24,12 @@ func CreateStartMarker(stageId string) string {
 
 func CreateEndMarker(stageId string) string {
 	return stageId + stageIdEndSuffix
+}
+
+func IsStartMarker(stageId string) bool {
+	return strings.HasSuffix(stageId, stageIdStartSuffix)
+}
+
+func IsEndMarker(stageId string) bool {
+	return strings.HasSuffix(stageId, stageIdEndSuffix)
 }
